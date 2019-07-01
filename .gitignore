@@ -1,0 +1,7 @@
+*.json
+server/server_env
+.DS_Store
+.idea/
+executor/executor_env
+scripts/
+log.txt
