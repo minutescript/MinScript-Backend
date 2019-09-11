@@ -32,7 +32,7 @@ db = firestore.client()
 storage_client = storage.Client()
 
 
-def transcribe(uri, user_id, filename):
+def transcribe(uri, user_id, filename, main_lang, extra_lang, no_speakers):
     # The name of the audio file to transcribe
     full_recording_file_name = RECORDINGS_FOLDER + '/' + user_id + '/' + filename
 
@@ -48,14 +48,15 @@ def transcribe(uri, user_id, filename):
     config = speech.types.RecognitionConfig(
         encoding=speech.enums.RecognitionConfig.AudioEncoding.LINEAR16,
         sample_rate_hertz=None,
-        language_code='en-US',
+        language_code=main_lang,
+        alternative_language_codes=extra_lang,
         enable_word_time_offsets=True,
         enable_automatic_punctuation=True,
         max_alternatives=1,
         profanity_filter=True,
         enable_word_confidence=True,
         enable_speaker_diarization=True,
-        diarization_speaker_count=2,
+        diarization_speaker_count=no_speakers,
         audio_channel_count=1,
         model='video')
 
@@ -114,15 +115,21 @@ def transcribe(uri, user_id, filename):
         word_dict = {
             u'w': word.word,
             u's': int(_get_nanos(word.start_time)),
-            u'e': int(_get_nanos(word.end_time))
+            u'e': int(_get_nanos(word.end_time)),
+            # added speaker diarization handling
+            u'speaker': int(word.speaker_tag)
         }
 
         return word_dict
 
     all_words = list()
-    for result in response.results:
-        words = map(lambda word: map_words(word), result.alternatives[0].words)
-        all_words.extend(words)
+    # for result in response.results:
+    results = response.results
+
+    diarized_result = results[len(results) - 1]
+    words = map(lambda word: map_words(word), diarized_result.alternatives[0].words)
+
+    all_words.extend(words)
 
     doc_ref.update({
         u'transcript': transcript,
@@ -177,8 +184,11 @@ if __name__ == '__main__':
         uri = msg_dict['uri']
         user_id = msg_dict['user_id']
         filename = msg_dict['filename']
+        main_lang = msg_dict['main_lang']
+        extra_lang = msg_dict['extra_lang']
+        no_speakers = msg_dict['no_speakers']
 
-        transcribe(uri, user_id, filename)
+        transcribe(uri, user_id, filename, main_lang, extra_lang, no_speakers)
 
 
     subscription = subscriber.subscribe(subscription_path, callback=callback)

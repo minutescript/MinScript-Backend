@@ -42,6 +42,24 @@ def transcription():
 
     full_file_name = RECORDINGS_FOLDER + '/' + uid + '/' + file_name
 
+    # retrieve main language
+    if not request_json.get('mainLang'):
+        abort(make_response(jsonify({'status': 'BAD_REQUEST'}), 400))
+    else:
+        main_lang = request_json['mainLang']
+
+    # retrieve additional languages
+    if not request_json.get('extraLang'):
+        abort(make_response(jsonify({'status': 'BAD_REQUEST'}), 400))
+    else:
+        extra_lang = request_json['extraLang']
+
+    # retrieve number of speakers
+    if not request_json.get('noSpeakers'):
+        abort(make_response(jsonify({'status': 'BAD_REQUEST'}), 400))
+    else:
+        no_speakers = int(request_json['noSpeakers'])
+
     if not storage_client.get_bucket(BUCKET_NAME).get_blob(full_file_name).exists():
         abort(make_response(jsonify({'status': 'FILE_NOT_FOUND'}), 404))
 
@@ -53,7 +71,10 @@ def transcription():
     msg_dict = {
         'uri': gs_uri,
         'user_id': uid,
-        'filename': file_name
+        'filename': file_name,
+        'main_lang': main_lang,
+        'extra_lang': extra_lang,
+        'no_speakers': int(no_speakers)
     }
 
     msg_str = json.dumps(msg_dict)
@@ -110,16 +131,6 @@ def _verify_user_against_db(user_id):
 
 
 
-# @app.route('/validation', methods=['GET'])
-# @cross_origin()
-# def validation():
-#     uid = _verify_auth()
-#     _verify_user_against_db(uid)
-
-#     return jsonify({'status': 'VALIDATION_SUCCESSFUL'})
-
-
-
 @app.route('/registration/<req_id>', methods=['GET'])
 @cross_origin()
 def registration_verification(req_id):
@@ -131,8 +142,6 @@ def registration_verification(req_id):
             db.collection('user_metadata').document(reg_doc_dict['uid']).set(user_doc)
             db.collection('admin').document('security').collection('registration_uids') \
                 .document(req_id).update({'verified': True})
-
-            # _send_email(reg_doc_dict['uid'])
 
             app.logger.info("User successfully activated %s" % reg_doc_dict['uid'])
 
@@ -160,10 +169,6 @@ def tcs_acceptance():
 
     return jsonify({'status': 'TCS_SUCCESSFULLY_ACCEPTED'})
 
-
-
-# def _send_email(uid):
-#    print("send email here")
 
 
 if __name__ == '__main__':
