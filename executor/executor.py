@@ -59,6 +59,10 @@ def transcribe(uri, user_id, filename, main_lang, extra_lang, diarize, auto_dete
         'audio_channel_count': 1,
         'model': 'video'}
 
+    # handle compatibility for less-supported languages
+    if extra_lang or main_lang.lower() != 'en-us':
+        config['model'] = 'default'
+
     # replace with below when Python package updated:
     # diarization_config = {
     #     'enable_speaker_diarization': diarize,
