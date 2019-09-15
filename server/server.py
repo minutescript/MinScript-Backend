@@ -35,30 +35,43 @@ def transcription():
 
     request_json = _get_json()
 
-    if not request_json.get('fileName'):
+    if not request_json.get('file_name'):
         abort(make_response(jsonify({'status': 'BAD_REQUEST'}), 400))
 
-    file_name = request_json['fileName']
+    file_name = request_json['file_name']
 
     full_file_name = RECORDINGS_FOLDER + '/' + uid + '/' + file_name
 
     # retrieve main language
-    if not request_json.get('mainLang'):
+    if not request_json.get('main_lang'):
         abort(make_response(jsonify({'status': 'BAD_REQUEST'}), 400))
     else:
-        main_lang = request_json['mainLang']
+        main_lang = request_json['main_lang']
 
     # retrieve additional languages
-    if not request_json.get('extraLang'):
+    # by default no extra languages needed, so no abort procedure implemented
+    extra_lang = []
+
+    if request_json.get('extra_lang'):
+        extra_lang = request_json['extra_lang']
+
+    # check if diarization enabled
+    if not request_json.get('diarize'):
         abort(make_response(jsonify({'status': 'BAD_REQUEST'}), 400))
     else:
-        extra_lang = request_json['extraLang']
+        diarize = True if request_json['diarize'].lower() == 'true' else False
+
+    # check if speakers auto-detect enabled
+    if not request_json.get('auto_detect'):
+        abort(make_response(jsonify({'status': 'BAD_REQUEST'}), 400))
+    else:
+        auto_detect = True if request_json['auto_detect'].lower() == 'true' else False
 
     # retrieve number of speakers
-    if not request_json.get('noSpeakers'):
+    if not request_json.get('no_speakers'):
         abort(make_response(jsonify({'status': 'BAD_REQUEST'}), 400))
     else:
-        no_speakers = int(request_json['noSpeakers'])
+        no_speakers = int(request_json['no_speakers'])
 
     if not storage_client.get_bucket(BUCKET_NAME).get_blob(full_file_name).exists():
         abort(make_response(jsonify({'status': 'FILE_NOT_FOUND'}), 404))
@@ -74,8 +87,13 @@ def transcription():
         'filename': file_name,
         'main_lang': main_lang,
         'extra_lang': extra_lang,
-        'no_speakers': int(no_speakers)
+        'diarize': diarize,
+        'auto_detect': auto_detect,
+        'no_speakers': no_speakers
     }
+
+    if not auto_detect:
+        msg_dict['no_speakers'] = int(no_speakers)
 
     msg_str = json.dumps(msg_dict)
     data = msg_str.encode('utf-8')

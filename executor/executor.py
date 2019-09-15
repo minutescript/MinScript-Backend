@@ -32,7 +32,7 @@ db = firestore.client()
 storage_client = storage.Client()
 
 
-def transcribe(uri, user_id, filename, main_lang, extra_lang, no_speakers):
+def transcribe(uri, user_id, filename, main_lang, extra_lang, diarize, auto_detect, no_speakers):
     # The name of the audio file to transcribe
     full_recording_file_name = RECORDINGS_FOLDER + '/' + user_id + '/' + filename
 
@@ -45,20 +45,31 @@ def transcribe(uri, user_id, filename, main_lang, extra_lang, no_speakers):
     log.info("Recording URI: %s" % uri)
 
     # Config
-    config = speech.types.RecognitionConfig(
-        encoding=speech.enums.RecognitionConfig.AudioEncoding.LINEAR16,
-        sample_rate_hertz=None,
-        language_code=main_lang,
-        alternative_language_codes=extra_lang,
-        enable_word_time_offsets=True,
-        enable_automatic_punctuation=True,
-        max_alternatives=1,
-        profanity_filter=True,
-        enable_word_confidence=True,
-        enable_speaker_diarization=True,
-        diarization_speaker_count=no_speakers,
-        audio_channel_count=1,
-        model='video')
+    config = {
+        'encoding': speech.enums.RecognitionConfig.AudioEncoding.LINEAR16,
+        'sample_rate_hertz': None,
+        'language_code': main_lang,
+        'alternative_language_codes': extra_lang,
+        'enable_word_time_offsets': True,
+        'enable_automatic_punctuation': True,
+        'max_alternatives': 1,
+        'profanity_filter': True,
+        'enable_word_confidence': True,
+        'enable_speaker_diarization': diarize,
+        'audio_channel_count': 1,
+        'model': 'video'}
+
+    # replace with below when Python package updated:
+    # diarization_config = {
+    #     'enable_speaker_diarization': diarize,
+    # }
+
+    if diarize and not auto_detect:
+        config['diarization_speaker_count'] = no_speakers
+        # diarization_config['min_speaker_count'] = no_speakers - 2
+        # diarization_config['max_speaker_count'] = no_speakers + 2
+
+    # config['diarization_config'] = diarization_config
 
     log.info("Recording config: %s" % config)
 
@@ -186,9 +197,11 @@ if __name__ == '__main__':
         filename = msg_dict['filename']
         main_lang = msg_dict['main_lang']
         extra_lang = msg_dict['extra_lang']
+        diarize = msg_dict['diarize']
+        auto_detect = msg_dict['auto_detect']
         no_speakers = msg_dict['no_speakers']
 
-        transcribe(uri, user_id, filename, main_lang, extra_lang, no_speakers)
+        transcribe(uri, user_id, filename, main_lang, extra_lang, diarize, auto_detect, no_speakers)
 
 
     subscription = subscriber.subscribe(subscription_path, callback=callback)
