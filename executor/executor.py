@@ -63,6 +63,9 @@ def transcribe(uri, user_id, filename, main_lang, extra_lang, diarize, auto_dete
     if extra_lang or main_lang.lower() != 'en-us':
         config['model'] = 'default'
 
+    if main_lang.lower() != 'en-us':
+        config['enable_speaker_diarization'] = False
+
     # replace with below when Python package updated:
     # diarization_config = {
     #     'enable_speaker_diarization': diarize,
