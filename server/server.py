@@ -5,7 +5,7 @@ import os
 import firebase_admin
 from firebase_admin import auth, credentials, firestore
 from google.cloud import storage
-from google.cloud import pubsub_v1
+from google.cloud import pubsub
 import json
 
 FREE_TIER_MAX_RECORDINGS = 10
@@ -35,12 +35,16 @@ def transcription():
 
     request_json = _get_json()
 
+    # retrieve file name
     if not request_json.get('file_name'):
         abort(make_response(jsonify({'status': 'BAD_REQUEST'}), 400))
 
     file_name = request_json['file_name']
 
     full_file_name = RECORDINGS_FOLDER + '/' + uid + '/' + file_name
+
+    if not storage_client.get_bucket(BUCKET_NAME).get_blob(full_file_name).exists():
+        abort(make_response(jsonify({'status': 'FILE_NOT_FOUND'}), 404))
 
     # retrieve main language
     if not request_json.get('main_lang'):
@@ -68,14 +72,12 @@ def transcription():
         auto_detect = True if request_json['auto_detect'].lower() == 'true' else False
 
     # retrieve number of speakers
-    if not request_json.get('no_speakers'):
+    if not request_json.get('no_speakers') and not auto_detect:
         abort(make_response(jsonify({'status': 'BAD_REQUEST'}), 400))
     else:
         no_speakers = int(request_json['no_speakers'])
 
-    if not storage_client.get_bucket(BUCKET_NAME).get_blob(full_file_name).exists():
-        abort(make_response(jsonify({'status': 'FILE_NOT_FOUND'}), 404))
-
+    # check if user has credits left
     _verify_user_against_db(uid)
 
     # start new executor process given GCS URI
