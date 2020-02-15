@@ -5,3 +5,4 @@ server/server_env
 executor/executor_env
 scripts/
 log.txt
+venv
