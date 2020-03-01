@@ -159,9 +159,13 @@ def transcribe(uri, user_id, filename, main_lang, extra_lang, diarize, auto_dete
     # Updates number of recordings in the admin db
     user_data = db.collection(u'user_metadata').document(user_id)
     user_dict = user_data.get().to_dict()
-    num_recordings = user_dict['num_recordings']
+    used_minutes = user_dict['used_minutes']
+
+    audio_metadata = doc_ref.get().to_dict()
+    duration = audio_metadata['length']
+    
     user_data.update({
-       u'num_recordings': num_recordings + 1
+       u'used_minutes': used_minutes + duration
     })
 
     log.info("num_recordings for user ID %s changed to %s" % (user_id, num_recordings + 1))

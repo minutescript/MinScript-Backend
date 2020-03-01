@@ -8,7 +8,12 @@ from google.cloud import storage
 from google.cloud import pubsub
 import json
 
-FREE_TIER_MAX_RECORDINGS = 10
+CONF_FILE = 'config.json'
+
+with open(CONF_FILE) as cfg:
+    CONFIG_JSON = json.load(cfg)
+
+TRIAL_MINUTES = CONFIG_JSON['trial_minutes']
 
 app = Flask(__name__)
 storage_client = storage.Client()
@@ -24,7 +29,7 @@ RECORDINGS_FOLDER = 'recordings'
 PROJECT_ID = 'minutescript-prod'
 TOPIC = 'transcription-requests'
 
-publisher = pubsub_v1.PublisherClient()
+publisher = pubsub.PublisherClient()
 topic_path = publisher.topic_path(PROJECT_ID, TOPIC)
 
 
@@ -138,9 +143,9 @@ def _verify_user_against_db(user_id):
         user_dict = user_doc.to_dict()
 
         if user_dict['enabled'] == True:
-            if user_dict['num_recordings'] >= user_dict['max_num_recordings']:
+            if user_dict['used_minutes'] >= user_dict['assigned_minutes']:
                 abort(make_response(jsonify({'status': 'RECORDING_LIMIT_REACHED: %s'
-                 % user_dict['max_num_recordings']}), 402))
+                 % user_dict['assigned_minutes']}), 402))
 
             # check file length here
         else:
@@ -158,7 +163,7 @@ def registration_verification(req_id):
     if reg_doc:
         reg_doc_dict = reg_doc.to_dict()
         if not reg_doc_dict['verified']:
-            user_doc = {'enabled': True, 'num_recordings': 0, 'max_num_recordings': FREE_TIER_MAX_RECORDINGS}
+            user_doc = {'enabled': True, 'used_minutes': 0, 'assigned_minutes': TRIAL_MINUTES}
             db.collection('user_metadata').document(reg_doc_dict['uid']).set(user_doc)
             db.collection('admin').document('security').collection('registration_uids') \
                 .document(req_id).update({'verified': True})
