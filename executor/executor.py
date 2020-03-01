@@ -13,7 +13,10 @@ from google.gax.errors import GaxError
 from google.cloud import pubsub
 from google.cloud import storage
 
+CONF_FILE = 'config.json'
 
+with open(CONF_FILE) as cfg:
+    CONFIG_JSON = json.load(cfg)
 
 FIREBASE_CERT_PATH = os.environ['FIREBASE_CERT_PATH']
 cred = credentials.Certificate(FIREBASE_CERT_PATH)
@@ -181,12 +184,12 @@ def _update_transcript_status(doc_ref, status):
 def _setup_custom_logger():
     formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s',
                                   datefmt='%Y-%m-%d %H:%M:%S')
-    handler = logging.FileHandler('log.txt', mode='w')
+    handler = logging.FileHandler(CONFIG_JSON['log_output'], mode='w')
     handler.setFormatter(formatter)
     screen_handler = logging.StreamHandler(stream=sys.stdout)
     screen_handler.setFormatter(formatter)
     logger = logging.getLogger(__name__)
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(CONFIG_JSON['log_level'])
     logger.addHandler(handler)
     logger.addHandler(screen_handler)
     return logger
