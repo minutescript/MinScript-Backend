@@ -168,7 +168,7 @@ def transcribe(uri, user_id, filename, main_lang, extra_lang, diarize, auto_dete
        u'used_minutes': used_minutes + duration
     })
 
-    log.info("num_recordings for user ID %s changed to %s" % (user_id, num_recordings + 1))
+    log.info("used_minutes for user ID %s changed to %s" % (user_id, used_minutes + duration))
 
 
 def _update_transcript_status(doc_ref, status):
