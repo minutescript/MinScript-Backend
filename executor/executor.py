@@ -61,10 +61,10 @@ def transcribe(uri, user_id, filename, main_lang, extra_lang, diarize, auto_dete
         'audio_channel_count': 1,
         'model': 'video'}
 
-    if mime_type = 'audio/wave':
+    if mime_type == 'audio/wave':
         config['encoding'] = speech.enums.RecognitionConfig.AudioEncoding.LINEAR16
     
-    if mime_type = 'audio/opus':
+    if mime_type == 'audio/opus':
         config['encoding'] = speech.enums.RecognitionConfig.AudioEncoding.OGG_OPUS
 
     # handle compatibility for less-supported languages
