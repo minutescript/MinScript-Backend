@@ -49,7 +49,6 @@ def transcribe(uri, user_id, filename, main_lang, extra_lang, diarize, auto_dete
 
     # Config
     config = {
-        'encoding': speech.enums.RecognitionConfig.AudioEncoding.LINEAR16,
         'sample_rate_hertz': None,
         'language_code': main_lang,
         'alternative_language_codes': extra_lang,
@@ -61,6 +60,12 @@ def transcribe(uri, user_id, filename, main_lang, extra_lang, diarize, auto_dete
         'enable_speaker_diarization': diarize,
         'audio_channel_count': 1,
         'model': 'video'}
+
+    if mime_type = 'audio/wave':
+        config['encoding'] = speech.enums.RecognitionConfig.AudioEncoding.LINEAR16
+    
+    if mime_type = 'audio/opus':
+        config['encoding'] = speech.enums.RecognitionConfig.AudioEncoding.OGG_OPUS
 
     # handle compatibility for less-supported languages
     if extra_lang or main_lang.lower() != 'en-us':
