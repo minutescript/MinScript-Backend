@@ -35,7 +35,7 @@ db = firestore.client()
 storage_client = storage.Client()
 
 
-def transcribe(uri, user_id, filename, main_lang, extra_lang, diarize, auto_detect, no_speakers):
+def transcribe(uri, user_id, filename, main_lang, extra_lang, diarize, auto_detect, no_speakers, sample_rate_hertz=None):
     # The name of the audio file to transcribe
     full_recording_file_name = RECORDINGS_FOLDER + '/' + user_id + '/' + filename
 
@@ -63,9 +63,10 @@ def transcribe(uri, user_id, filename, main_lang, extra_lang, diarize, auto_dete
 
     if mime_type == 'audio/wave':
         config['encoding'] = speech.enums.RecognitionConfig.AudioEncoding.LINEAR16
-    
+
     if mime_type == 'audio/opus':
         config['encoding'] = speech.enums.RecognitionConfig.AudioEncoding.OGG_OPUS
+        config['sample_rate_hertz'] = sample_rate_hertz
 
     # handle compatibility for less-supported languages
     if extra_lang or main_lang.lower() != 'en-us':
@@ -220,7 +221,11 @@ if __name__ == '__main__':
         auto_detect = msg_dict['auto_detect']
         no_speakers = msg_dict['no_speakers']
 
-        transcribe(uri, user_id, filename, main_lang, extra_lang, diarize, auto_detect, no_speakers)
+        if ('sample_rate_hertz' in msg_dict):
+            sample_rate_hertz = msg_dict['sample_rate_hertz']
+            transcribe(uri, user_id, filename, main_lang, extra_lang, diarize, auto_detect, no_speakers, sample_rate_hertz)
+        else:
+            transcribe(uri, user_id, filename, main_lang, extra_lang, diarize, auto_detect, no_speakers)
 
 
     subscription = subscriber.subscribe(subscription_path, callback=callback)
