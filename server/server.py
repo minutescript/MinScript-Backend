@@ -101,6 +101,9 @@ def transcription():
 
     if not auto_detect:
         msg_dict['no_speakers'] = int(no_speakers)
+    
+    if request_json.get('sample_rate_hertz'):
+        msg_dict['sample_rate_hertz'] = int(request_json['sample_rate_hertz'])
 
     msg_str = json.dumps(msg_dict)
     data = msg_str.encode('utf-8')
