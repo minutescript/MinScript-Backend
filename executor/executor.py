@@ -5,6 +5,7 @@ from firebase_admin import credentials, firestore
 import logging
 import json
 import time
+import math
 
 # Imports the Google Cloud client library
 from google.cloud import speech_v1p1beta1 as speech
@@ -34,12 +35,85 @@ client = speech.SpeechClient()
 db = firestore.client()
 storage_client = storage.Client()
 
+# launches file conversion if needed
+def convertFile(uri, user_id, filename):
+    full_recording_file_name = RECORDINGS_FOLDER + '/' + user_id + '/' + filename
+    sample_rate_hertz = 48000
 
+    # get the file name prefix
+    prefix = filename.split('.')[0]
+    # set the extension
+    extension = '.ogg'
+    # get the destination path
+    output_file_name = prefix + extension
+    output_file_path = '/tmp/' + output_file_name
+
+    full_new_recording_file_name = RECORDINGS_FOLDER + '/' + user_id + '/' + output_file_name
+    
+    # download locally
+    download_destination = '/tmp/' + filename
+
+    blob = storage_client.get_bucket(BUCKET_NAME).get_blob(full_recording_file_name)
+    blob.download_to_filename(download_destination)
+
+    # run conversion
+    subprocess.run(
+        ['ffmpeg', '-i', download_destination, 
+        '-c:a', 'libopus', '-ar', str(sample_rate_hertz), '-ac', '1', 
+        output_file_path])
+    
+    # upload
+    blob = storage_client.get_bucket(BUCKET_NAME).blob(full_new_recording_file_name)
+
+    blob.upload_from_filename(filename=output_file_path, content_type='audio/opus')
+
+    # Fetches ref to user
+    doc_ref = db.collection(u'users').document(user_id).collection(u'recordings').document(filename)
+
+    # copy old document to the new location
+    file_metadata = doc_ref.get().to_dict()
+    new_doc_ref = db.collection(u'users').document(user_id).collection(u'recordings').document(output_file_name)
+    new_doc_ref.set(file_metadata)
+
+    # delete old document
+    doc_ref.delete()
+
+    # delete redundant cloud files too
+    blob = storage_client.get_bucket(BUCKET_NAME).blob(full_recording_file_name)
+    blob.delete()
+
+    # prepare metadata update
+    new_uri = 'gs://' + BUCKET_NAME + '/' + full_new_recording_file_name
+    
+    update_dict = {
+        u'file_name': output_file_name,
+        u'format': 'audio/opus',
+        u'sample_rate_hertz': sample_rate_hertz,
+        u'uri': new_uri
+    }
+
+    # update metadata
+    new_doc_ref.update(update_dict)
+
+    # delete local temp files
+    os.remove(download_destination)
+    os.remove(output_file_path)
+
+    # return:
+    return new_uri, output_file_name, sample_rate_hertz
+
+# function called after message processed
 def transcribe(uri, user_id, filename, main_lang, extra_lang, diarize, auto_detect, no_speakers, sample_rate_hertz=None):
     # The name of the audio file to transcribe
     full_recording_file_name = RECORDINGS_FOLDER + '/' + user_id + '/' + filename
 
     mime_type = storage_client.get_bucket(BUCKET_NAME).get_blob(full_recording_file_name).content_type
+
+    # if submitted file is an mp4, convert and try again
+    if mime_type == 'audio/mp4':
+        new_uri, new_filename, new_sample_rate_hertz = convertFile(uri, user_id, filename)
+        return transcribe(new_uri, user_id, new_filename, main_lang, extra_lang, diarize, auto_detect, no_speakers, new_sample_rate_hertz)
+
     audio = speech.types.RecognitionAudio(uri=uri)
     log.info("MimeType: %s" % mime_type)
 
@@ -49,7 +123,7 @@ def transcribe(uri, user_id, filename, main_lang, extra_lang, diarize, auto_dete
 
     # Config
     config = {
-        'sample_rate_hertz': None,
+        'sample_rate_hertz': sample_rate_hertz,
         'language_code': main_lang,
         'alternative_language_codes': extra_lang,
         'enable_word_time_offsets': True,
@@ -63,10 +137,9 @@ def transcribe(uri, user_id, filename, main_lang, extra_lang, diarize, auto_dete
 
     if mime_type == 'audio/wave':
         config['encoding'] = speech.enums.RecognitionConfig.AudioEncoding.LINEAR16
-
+    
     if mime_type == 'audio/opus':
         config['encoding'] = speech.enums.RecognitionConfig.AudioEncoding.OGG_OPUS
-        config['sample_rate_hertz'] = sample_rate_hertz
 
     # handle compatibility for less-supported languages
     if extra_lang or main_lang.lower() != 'en-us':
@@ -172,12 +245,13 @@ def transcribe(uri, user_id, filename, main_lang, extra_lang, diarize, auto_dete
 
     audio_metadata = doc_ref.get().to_dict()
     duration = audio_metadata['length']
+    duration_min = math.floor(duration / 60)
     
     user_data.update({
-       u'used_minutes': used_minutes + duration
+       u'used_minutes': used_minutes + duration_min
     })
 
-    log.info("used_minutes for user ID %s changed to %s" % (user_id, used_minutes + duration))
+    log.info("used_minutes for user ID %s changed to %s" % (user_id, used_minutes + duration_min))
 
 
 def _update_transcript_status(doc_ref, status):
@@ -220,7 +294,7 @@ if __name__ == '__main__':
         diarize = msg_dict['diarize']
         auto_detect = msg_dict['auto_detect']
         no_speakers = msg_dict['no_speakers']
-
+        
         if ('sample_rate_hertz' in msg_dict):
             sample_rate_hertz = msg_dict['sample_rate_hertz']
             transcribe(uri, user_id, filename, main_lang, extra_lang, diarize, auto_detect, no_speakers, sample_rate_hertz)
