@@ -6,3 +6,4 @@ executor/executor_env
 scripts/
 log.txt
 venv
+.firebaserc
