@@ -14,6 +14,9 @@ from google.gax.errors import GaxError
 from google.cloud import pubsub
 from google.cloud import storage
 
+# Imports subprocess to handle the call to ffmpeg
+import subprocess
+
 CONF_FILE = 'config.json'
 
 with open(CONF_FILE) as cfg:
