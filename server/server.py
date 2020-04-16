@@ -40,6 +40,8 @@ def transcription():
 
     request_json = _get_json()
 
+    app.logger.debug('Received request: %s' % request_json)
+
     # retrieve file name
     if not request_json.get('file_name'):
         abort(make_response(jsonify({'status': 'BAD_REQUEST'}), 400))
