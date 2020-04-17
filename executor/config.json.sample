@@ -1,5 +1,4 @@
 {
     "log_output": "log.out",
-    "log_level": "INFO",
-    "sample_rate_hertz": 16000
+    "log_level": "INFO"
 }

@@ -15,4 +15,5 @@ The cloud function handles account activation when new account is created
 8. Deploy functions to the cloud by running `firebase deploy`.
 
 ## Development
-The source code for the functions is in `functions/index.js`. Any npm commands should be executed within `functions` directory.
+The source code for the functions is in `functions/index.js`.
+Any npm commands should be executed within `functions` directory.
