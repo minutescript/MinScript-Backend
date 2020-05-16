@@ -36,76 +36,74 @@ topic_path = publisher.topic_path(PROJECT_ID, TOPIC)
 @app.route('/transcription', methods=['POST'])
 @cross_origin()
 def transcription():
+    # fetch uid and request body
     uid = _verify_auth()
 
-    request_json = _get_json()
-
-    app.logger.debug('Received request: %s' % request_json)
-
-    # retrieve file name
-    if not request_json.get('file_name'):
-        abort(make_response(jsonify({'status': 'BAD_REQUEST'}), 400))
-
-    file_name = request_json['file_name']
-
-    full_file_name = RECORDINGS_FOLDER + '/' + uid + '/' + file_name
-
-    if not storage_client.get_bucket(BUCKET_NAME).get_blob(full_file_name).exists():
-        abort(make_response(jsonify({'status': 'FILE_NOT_FOUND'}), 404))
-
-    # retrieve main language
-    if not request_json.get('main_lang'):
-        abort(make_response(jsonify({'status': 'BAD_REQUEST'}), 400))
-    else:
-        main_lang = request_json['main_lang']
-
-    # retrieve additional languages
-    # by default no extra languages needed, so no abort procedure implemented
-    extra_lang = []
-
-    if request_json.get('extra_lang'):
-        extra_lang = request_json['extra_lang']
-
-    # check if diarization enabled
-    if not request_json.get('diarize'):
-        abort(make_response(jsonify({'status': 'BAD_REQUEST'}), 400))
-    else:
-        diarize = True if request_json['diarize'].lower() == 'true' else False
-
-    # check if speakers auto-detect enabled
-    if not request_json.get('auto_detect'):
-        abort(make_response(jsonify({'status': 'BAD_REQUEST'}), 400))
-    else:
-        auto_detect = True if request_json['auto_detect'].lower() == 'true' else False
-
-    # retrieve number of speakers
-    if not request_json.get('no_speakers') and not auto_detect:
-        abort(make_response(jsonify({'status': 'BAD_REQUEST'}), 400))
-    else:
-        no_speakers = int(request_json['no_speakers'])
+    app.logger.info('Received request from %s' % uid)
 
     # check if user has credits left
     _verify_user_against_db(uid)
 
-    # start new executor process given GCS URI
+    # if positively verified, start processing the request
+    request_json = _get_json()
+
+    app.logger.debug('Request content:\n%s' % request_json)
+
+    # check if requests meets the minimum specification
+    app.logger.info('Checking whether the request is correct')
+
+    # retrieve file name
+    file_name = _abort_if_not_present('file_name')
+    full_file_name = RECORDINGS_FOLDER + '/' + uid + '/' + file_name
+
+    # check if provided file exists
+    if not storage_client.get_bucket(BUCKET_NAME).get_blob(full_file_name).exists():
+        abort(make_response(jsonify({'status': 'FILE_NOT_FOUND'}), 404))
+
+    # retrieve main language
+    main_lang = _abort_if_not_present('main_lang')
+
+    # build skeleton message for the executor
     gs_uri = 'gs://' + BUCKET_NAME + '/' + full_file_name
 
     msg_dict = {
         'uri': gs_uri,
         'user_id': uid,
         'filename': file_name,
-        'main_lang': main_lang,
-        'extra_lang': extra_lang,
-        'diarize': diarize,
-        'auto_detect': auto_detect,
-        'no_speakers': no_speakers
+        'main_lang': main_lang
     }
 
-    if not auto_detect:
-        msg_dict['no_speakers'] = int(no_speakers)
-    
-    if request_json.get('sample_rate_hertz'):
-        msg_dict['sample_rate_hertz'] = int(request_json['sample_rate_hertz'])
+    # now checking for optional fields
+    # retrieve additional languages
+    msg_dict = _add_if_present('extra_lang', msg_dict)
+
+    # check if diarization enabled
+    msg_dict = _add_if_present('diarize', msg_dict, is_bool=True)
+
+    # check for sample rate
+    msg_dict = _add_if_present('sample_rate_hertz', msg_dict)
+
+    # collect number of speakers for diarization
+    # otherwise, check if auto-detect present
+    # NOTE: auto-detect and no_speakers used only for legacy spec
+    if msg_dict['diarize']:
+        msg_dict = _add_if_present('no_speakers_min', msg_dict)
+        msg_dict = _add_if_present('no_speakers_max', msg_dict)
+
+        # make it more foolproof
+        if ('no_speakers_min' not in msg_dict) and ('no_speakers_max' in msg_dict):
+            msg_dict['no_speakers_min'] = msg_dict['no_speakers_max']
+        if ('no_speakers_max' not in msg_dict) and ('no_speakers_min' in msg_dict):
+            msg_dict['no_speakers_max'] = msg_dict['no_speakers_min']
+
+        # fallback to legacy API if min and max not present
+        if ('no_speakers_min' not in msg_dict) and ('no_speakers_max' not in msg_dict) and 'no_speakers' in request_json:
+            msg_dict['no_speakers_min'] = request_json['no_speakers']
+            msg_dict['no_speakers_max'] = request_json['no_speakers']
+
+        # fallback to legacy auto-detect, if needed
+        if ('no_speakers_min' not in msg_dict) and ('no_speakers_max' not in msg_dict):
+            msg_dict = _add_if_present('auto_detect', msg_dict, is_bool=True)
 
     msg_str = json.dumps(msg_dict)
     data = msg_str.encode('utf-8')
@@ -114,6 +112,31 @@ def transcription():
     app.logger.info("Message: %s successfully published" % data)
 
     return jsonify({'status': 'PROCESS_STARTED'})
+
+
+# verify if preperty present in the request body
+def _abort_if_not_present(field):
+    req = _get_json()
+
+    if not req.get(field):
+        abort(make_response(jsonify({'status': 'BAD_REQUEST'}), 400))
+    else:
+        return req[field]
+
+
+# add to message if present
+def _add_if_present(field, msg, is_bool=False):
+    req = _get_json()
+
+    if req.get(field):
+        # as errors known for bools in requests, bool values passed to server as strings
+        # parsing is done below
+        if is_bool:
+            msg[field] = True if req[field].lower() == 'true' else False
+        else:
+            msg[field] = req[field]
+    
+    return msg
 
 
 def _verify_auth():

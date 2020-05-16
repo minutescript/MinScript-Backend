@@ -106,7 +106,10 @@ def convertFile(uri, user_id, filename):
     return new_uri, output_file_name, sample_rate_hertz
 
 # function called after message processed
-def transcribe(uri, user_id, filename, main_lang, extra_lang, diarize, auto_detect, no_speakers, sample_rate_hertz=None):
+def transcribe(uri, user_id, filename, main_lang, 
+               extra_lang=[], diarize=False, auto_detect=False,
+               no_speakers_min=None, no_speakers_max=None, sample_rate_hertz=None):
+
     # The name of the audio file to transcribe
     full_recording_file_name = RECORDINGS_FOLDER + '/' + user_id + '/' + filename
 
@@ -115,7 +118,9 @@ def transcribe(uri, user_id, filename, main_lang, extra_lang, diarize, auto_dete
     # if submitted file is an mp4, convert and try again
     if mime_type == 'audio/mp4':
         new_uri, new_filename, new_sample_rate_hertz = convertFile(uri, user_id, filename)
-        return transcribe(new_uri, user_id, new_filename, main_lang, extra_lang, diarize, auto_detect, no_speakers, new_sample_rate_hertz)
+        return transcribe(new_uri, user_id, new_filename, main_lang, 
+                          extra_lang, diarize, auto_detect, 
+                          no_speakers_min, no_speakers_max, sample_rate_hertz=new_sample_rate_hertz)
 
     audio = speech.types.RecognitionAudio(uri=uri)
     log.info("MimeType: %s" % mime_type)
@@ -124,9 +129,8 @@ def transcribe(uri, user_id, filename, main_lang, extra_lang, diarize, auto_dete
     log.info("Processing for user ID: %s" % user_id)
     log.info("Recording URI: %s" % uri)
 
-    # Config
+    # build skeleton config
     config = {
-        'sample_rate_hertz': sample_rate_hertz,
         'language_code': main_lang,
         'alternative_language_codes': extra_lang,
         'enable_word_time_offsets': True,
@@ -134,9 +138,11 @@ def transcribe(uri, user_id, filename, main_lang, extra_lang, diarize, auto_dete
         'max_alternatives': 1,
         'profanity_filter': True,
         'enable_word_confidence': True,
-        'enable_speaker_diarization': diarize,
         'audio_channel_count': 1,
         'model': 'video'}
+
+    if sample_rate_hertz is not None:
+        config['sample_rate_hertz'] = int(sample_rate_hertz)
 
     if mime_type == 'audio/wave':
         config['encoding'] = speech.enums.RecognitionConfig.AudioEncoding.LINEAR16
@@ -148,20 +154,22 @@ def transcribe(uri, user_id, filename, main_lang, extra_lang, diarize, auto_dete
     if extra_lang or main_lang.lower() != 'en-us':
         config['model'] = 'default'
 
-    if main_lang.lower() != 'en-us':
-        config['enable_speaker_diarization'] = False
+    if auto_detect:
+        config['enable_speaker_diarization'] = diarize
 
-    # replace with below when Python package updated:
-    # diarization_config = {
-    #     'enable_speaker_diarization': diarize,
-    # }
+    # if main_lang.lower() != 'en-us':
+    #    config['enable_speaker_diarization'] = False
 
-    if diarize and not auto_detect:
-        config['diarization_speaker_count'] = no_speakers
-        # diarization_config['min_speaker_count'] = no_speakers - 2
-        # diarization_config['max_speaker_count'] = no_speakers + 2
+    if diarize and (not auto_detect):
+        # config['diarization_speaker_count'] = no_speakers
 
-    # config['diarization_config'] = diarization_config
+        diarization_config = {
+            'enable_speaker_diarization': diarize,
+            'min_speaker_count': int(no_speakers_min),
+            'max_speaker_count': int(no_speakers_max)
+        }
+        
+        config['diarization_config'] = diarization_config
 
     log.info("Recording config: %s" % config)
 
@@ -278,6 +286,13 @@ def _setup_custom_logger():
     return logger
 
 
+def _default_if_not_present(field, msg, default):
+    if field in msg:
+        return msg[field]
+    else:
+        return default
+
+
 if __name__ == '__main__':
     log = _setup_custom_logger()
     subscriber = pubsub.SubscriberClient()
@@ -289,20 +304,20 @@ if __name__ == '__main__':
         message.ack()
 
         msg_dict = json.loads(message.data.decode("utf-8"))
+        # required parameters
         uri = msg_dict['uri']
         user_id = msg_dict['user_id']
         filename = msg_dict['filename']
         main_lang = msg_dict['main_lang']
-        extra_lang = msg_dict['extra_lang']
-        diarize = msg_dict['diarize']
-        auto_detect = msg_dict['auto_detect']
-        no_speakers = msg_dict['no_speakers']
-        
-        if ('sample_rate_hertz' in msg_dict):
-            sample_rate_hertz = msg_dict['sample_rate_hertz']
-            transcribe(uri, user_id, filename, main_lang, extra_lang, diarize, auto_detect, no_speakers, sample_rate_hertz)
-        else:
-            transcribe(uri, user_id, filename, main_lang, extra_lang, diarize, auto_detect, no_speakers)
+        # optional parameters
+        extra_lang = _default_if_not_present('extra_lang', msg_dict, [])
+        diarize = _default_if_not_present('diarize', msg_dict, False)
+        auto_detect = _default_if_not_present('auto_detect', msg_dict, False)
+        no_speakers_min = _default_if_not_present('no_speakers_min', msg_dict, None)
+        no_speakers_max = _default_if_not_present('no_speakers_max', msg_dict, None)
+        sample_rate_hertz = _default_if_not_present('sample_rate_hertz', msg_dict, None)
+
+        transcribe(uri, user_id, filename, main_lang, extra_lang, diarize, auto_detect, no_speakers_min, no_speakers_max, sample_rate_hertz)
 
 
     subscription = subscriber.subscribe(subscription_path, callback=callback)
