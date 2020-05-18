@@ -275,13 +275,13 @@ def _update_transcript_status(doc_ref, status):
 def _setup_custom_logger():
     formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s',
                                   datefmt='%Y-%m-%d %H:%M:%S')
-    handler = logging.FileHandler(CONFIG_JSON['log_output'], mode='w')
-    handler.setFormatter(formatter)
+    #file_handler = logging.FileHandler(CONFIG_JSON['log_output'], mode='w')
+    #file_handler.setFormatter(formatter)
     screen_handler = logging.StreamHandler(stream=sys.stdout)
     screen_handler.setFormatter(formatter)
     logger = logging.getLogger(__name__)
     logger.setLevel(CONFIG_JSON['log_level'])
-    logger.addHandler(handler)
+    #logger.addHandler(file_handler)
     logger.addHandler(screen_handler)
     return logger
 

@@ -1,0 +1,12 @@
+# exclude .git and .gitignore
+.git
+.gitignore
+
+# exclude Dockerfile
+Dockerfile
+
+# exclude sample files
+config.json.sample
+
+# exclude other unnecessary files
+executor.yaml
