@@ -7,13 +7,13 @@ WORKDIR /usr/src/executor
 # Copy everything from your host to your current location.
 COPY . .
 
-# Set up environment variables
+# Set up environment variables.
 ENV FIREBASE_CERT_PATH ./certs/firebase-cert.json
 ENV GOOGLE_APPLICATION_CREDENTIALS ./certs/executor-cert.json
 
-# Run the command inside your image filesystem.
+# Install dependencies.
 RUN python -m pip install -r requirements.txt
 RUN apt update && apt install ffmpeg -y
 
-# Run the specified command within the container.
+# Run executor.
 CMD [ "python", "executor.py" ]
