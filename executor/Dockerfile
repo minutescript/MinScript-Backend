@@ -2,7 +2,8 @@
 FROM python:3.8.3-slim
 
 # Set the working directory.
-WORKDIR /usr/src/executor
+ENV APP_HOME /executor
+WORKDIR $APP_HOME
 
 # Copy everything from your host to your current location.
 COPY . .
@@ -16,4 +17,5 @@ RUN python -m pip install -r requirements.txt
 RUN apt update && apt install ffmpeg -y
 
 # Run executor.
-CMD [ "python", "executor.py" ]
+#CMD [ "python", "executor.py" ]
+CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 0 executor_cloud_run:app
