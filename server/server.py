@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, abort, make_response, logging
+from flask import Flask, request, jsonify, abort, make_response
 from flask_cors import cross_origin
 
 import os
@@ -7,6 +7,7 @@ from firebase_admin import auth, credentials, firestore
 from google.cloud import storage
 from google.cloud import pubsub
 import json
+import logging
 
 CONF_FILE = 'config.json'
 
@@ -230,3 +231,4 @@ if __name__ == '__main__':
 if __name__ != '__main__':
     gunicorn_logger = logging.getLogger('gunicorn.error')
     app.logger.handlers = gunicorn_logger.handlers
+    app.logger.setLevel(gunicorn_logger.level)
