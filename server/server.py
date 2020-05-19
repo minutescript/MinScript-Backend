@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, abort, make_response
+from flask import Flask, request, jsonify, abort, make_response, logging
 from flask_cors import cross_origin
 
 import os
@@ -223,6 +223,10 @@ def tcs_acceptance():
     return jsonify({'status': 'TCS_SUCCESSFULLY_ACCEPTED'})
 
 
-
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
+# attach Flask logging to gunicorn
+if __name__ != '__main__':
+    gunicorn_logger = logging.getLogger('gunicorn.error')
+    app.logger.handlers = gunicorn_logger.handlers
