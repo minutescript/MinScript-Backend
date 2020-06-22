@@ -17,5 +17,5 @@ RUN python -m pip install -r requirements.txt
 RUN apt update && apt install ffmpeg -y
 
 # Run executor.
-#CMD [ "python", "executor.py" ]
-CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 0 executor_cloud_run:app
+CMD [ "python", "executor.py" ]
+#CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 0 executor_cloud_run:app

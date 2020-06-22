@@ -17,7 +17,7 @@ from google.cloud import storage
 # Imports subprocess to handle the call to ffmpeg
 import subprocess
 
-CONF_FILE = 'config.json'
+CONF_FILE = os.path.join(os.environ['APP_HOME'], 'config.json')
 
 with open(CONF_FILE) as cfg:
     CONFIG_JSON = json.load(cfg)
