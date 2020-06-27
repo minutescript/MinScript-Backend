@@ -11,7 +11,7 @@ import math
 from google.cloud import speech_v1p1beta1 as speech
 
 from google.gax.errors import GaxError
-from google.cloud import pubsub
+from google.cloud import pubsub_v1
 from google.cloud import storage
 
 # Imports subprocess to handle the call to ffmpeg
@@ -110,13 +110,19 @@ def transcribe(uri, user_id, filename, main_lang,
                extra_lang=[], diarize=False, auto_detect=False,
                no_speakers_min=None, no_speakers_max=None, sample_rate_hertz=None):
 
+    # Fetches ref to user
+    doc_ref = db.collection(u'users').document(user_id).collection(u'recordings').document(filename)
+
+    # Update status to processing
+    _update_transcript_status(doc_ref, 'processing')
+    
     # The name of the audio file to transcribe
     full_recording_file_name = RECORDINGS_FOLDER + '/' + user_id + '/' + filename
 
     mime_type = storage_client.get_bucket(BUCKET_NAME).get_blob(full_recording_file_name).content_type
 
     # if submitted file is an mp4, convert and try again
-    if mime_type == 'audio/mp4':
+    if mime_type == 'audio/unknown':
         new_uri, new_filename, new_sample_rate_hertz = convertFile(uri, user_id, filename)
         return transcribe(new_uri, user_id, new_filename, main_lang, 
                           extra_lang, diarize, auto_detect, 
@@ -174,15 +180,12 @@ def transcribe(uri, user_id, filename, main_lang,
     log.info("Recording config: %s" % config)
 
 
-    # Fetches ref to user
-    doc_ref = db.collection(u'users').document(user_id).collection(u'recordings').document(filename)
-
     # Detects speech in the audio file
     operation = client.long_running_recognize(config, audio)
     log.info('Speech API operation ID: %s' % operation)
 
     try:
-        _update_transcript_status(doc_ref, 'processing')
+        # _update_transcript_status(doc_ref, 'processing')
         response = operation.result(timeout=3600)
     except GaxError as e:
         _update_transcript_status(doc_ref, 'error: %s' % e)
@@ -295,7 +298,7 @@ def _default_if_not_present(field, msg, default):
 
 if __name__ == '__main__':
     log = _setup_custom_logger()
-    subscriber = pubsub.SubscriberClient()
+    subscriber = pubsub_v1.SubscriberClient()
     subscription_path = subscriber.subscription_path(PROJECT_ID, TOPIC)
 
 
@@ -323,5 +326,16 @@ if __name__ == '__main__':
     subscription = subscriber.subscribe(subscription_path, callback=callback)
 
     log.info('Listening for messages on {}'.format(subscription_path))
-    while True:
-        time.sleep(60)
+    #while True:
+    #    time.sleep(60)
+
+    # Wrap subscriber in a 'with' block to automatically call close() when done.
+    with subscriber:
+        try:
+            # When `timeout` is not set, result() will block indefinitely,
+            # unless an exception is encountered first.
+            subscription.result()
+        except:
+            subscription.cancel()
+
+    subscriber.close()
